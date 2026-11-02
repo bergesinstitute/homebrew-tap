@@ -19,7 +19,3 @@ Help: https://berges.ai/help/use-berges-ai-in-your-terminal
 1. Bump `VERSION` in `berges/bin/berges`.
 2. Tag `berges-vX.Y.Z` and push the tag.
 3. In the formula, set `url` to that tag's tarball and `sha256` to `curl -sL <url> | shasum -a 256`. Push.
-
-## Local testing
-
-`BERGES_API_URL=https://bergesai.test/api/v1 berges/bin/berges` runs it against a local site.
