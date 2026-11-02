@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
-# Berges CLI: Berges AI as an agent in your terminal, built on goose.
+# Berges CLI: Berges AI as an agent in your terminal, built on pi.
 #
-# Runs goose with its own settings folder (GOOSE_PATH_ROOT), the Berges AI
-# provider and this computer's key, so it never touches a separate goose setup.
-# Written for the bash 3.2 that ships with macOS.
+# Runs pi with its own settings folder (PI_CODING_AGENT_DIR), the Berges AI
+# provider and extension, and this computer's key, so it never touches a
+# separate pi setup. Written for the bash 3.2 that ships with macOS.
 
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
-GOOSE_ROOT="$STATE_DIR/goose"
+PI_DIR="$STATE_DIR/pi"
 ME_CACHE="$STATE_DIR/me.json"
 KEY_FILE="$STATE_DIR/credentials"
 KEYCHAIN_SERVICE="berges-cli"
-
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
-SPRITES_DIR="$SCRIPT_DIR/../share/berges/sprites"
-[ -d "$SPRITES_DIR" ] || SPRITES_DIR="$SCRIPT_DIR/../sprites"
+SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+SHARE_DIR="$(dirname "$SELF")/../share/berges"
+[ -d "$SHARE_DIR" ] || SHARE_DIR="$(dirname "$SELF")/.."
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
 
@@ -104,7 +103,9 @@ cmd_login() {
     open_browser "$url"
     printf 'Waiting for you to allow this computer...\n'
 
-    deadline=$(( $(date +%s) + expires ))
+    # A little past the code's lifetime, so an approval in its last seconds is
+    # still collected.
+    deadline=$(( $(date +%s) + expires + 30 ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep "$interval"
         response="$(http POST /device/token --data-urlencode "device_code=$device_code")"
@@ -156,127 +157,58 @@ fetch_me() {
     esac
 }
 
-write_goose_config() {
-    local providers="$GOOSE_ROOT/config/custom_providers"
-    mkdir -p "$providers"
+write_pi_config() {
+    local settings="$PI_DIR/settings.json" defaults
+    mkdir -p "$PI_DIR/extensions"
 
-    jq --arg url "$API_URL/chat/completions" '{
-        name: "berges",
-        engine: "openai",
-        display_name: "Berges AI",
-        description: "Berges AI models with your pipeline, chatbot and house rules",
-        api_key_env: "BERGES_API_KEY",
-        base_url: $url,
-        models: [.models[] | {name: .id, context_limit: .context_limit, max_tokens: .max_tokens}],
-        supports_streaming: true,
-        dynamic_models: false,
-        skip_canonical_filtering: true
-    }' "$ME_CACHE" > "$providers/berges.json"
+    # Rewritten on every start, so the models follow the API.
+    jq --arg url "$API_URL" --arg key "!'$SELF' key" '{
+        providers: {
+            berges: {
+                name: "Berges AI",
+                baseUrl: $url,
+                api: "openai-completions",
+                apiKey: $key,
+                models: [.models[] | {id, name, contextWindow: .context_window, maxTokens: .max_tokens}]
+            }
+        }
+    }' "$ME_CACHE" > "$PI_DIR/models.json"
 
-    # Written once, so changes made later with `goose configure` stick.
-    if [ ! -f "$GOOSE_ROOT/config/config.yaml" ]; then
-        cat > "$GOOSE_ROOT/config/config.yaml" <<'YAML'
-GOOSE_PROVIDER: berges
-GOOSE_MODE: smart_approve
-GOOSE_TELEMETRY_ENABLED: false
-YAML
-    fi
-}
+    cp "$SHARE_DIR/extension/berges.ts" "$PI_DIR/extensions/berges.ts"
 
-# --- Banner: the chatbot's sprite, drawn with half blocks (two pixels per
-# character cell), next to a few lines of text.
-
-palette_color() {
-    local key="$1" line
-    while IFS= read -r line; do
-        case "$line" in
-            "$key "*) printf '%s' "${line#* }"; return ;;
-        esac
-    done <<EOF
-$PALETTE
-EOF
-}
-
-ansi_color() {
-    local layer="$1" hex="$2" r g b
-    r=$((16#${hex:0:2})); g=$((16#${hex:2:2})); b=$((16#${hex:4:2}))
-    if [ "$TRUECOLOR" = 1 ]; then
-        printf '\033[%s;2;%d;%d;%dm' "$layer" "$r" "$g" "$b"
+    # Defaults are only added when missing, so changes made in pi stick.
+    defaults="$(jq --arg model "$(jq -r '.default_model // empty' "$ME_CACHE")" -n '{
+        defaultProvider: "berges",
+        defaultModel: $model,
+        enableInstallTelemetry: false,
+        quietStartup: "header",
+        editorPaddingX: 1
+    }')"
+    if [ -f "$settings" ]; then
+        jq --argjson defaults "$defaults" '$defaults + .' "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
     else
-        printf '\033[%s;5;%dm' "$layer" $(( 16 + 36 * ((r * 5 + 127) / 255) + 6 * ((g * 5 + 127) / 255) + (b * 5 + 127) / 255 ))
+        printf '%s\n' "$defaults" > "$settings"
     fi
-}
 
-render_sprite() {
-    local file="$1" rows=() line top bottom out i col t b tc bc
-    PALETTE=""
-    while IFS= read -r line; do
-        case "$line" in
-            '#'*|'') ;;
-            ?' '[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) PALETTE="$PALETTE$line"$'\n' ;;
-            *) rows+=("$line") ;;
-        esac
-    done < "$file"
+    # Always set: /share goes to the user's own GitHub, never pi's service.
+    jq '.sessionShareDestination = "gist"' "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
 
-    SPRITE_LINES=()
-    for (( i = 0; i < ${#rows[@]}; i += 2 )); do
-        top="${rows[$i]}"; bottom="${rows[$((i + 1))]:-}"; out=""
-        for (( col = 0; col < ${#top}; col++ )); do
-            t="${top:$col:1}"; b="${bottom:$col:1}"
-            [ "$t" = "." ] && tc="" || tc="$(palette_color "$t")"
-            [ -z "$b" ] || [ "$b" = "." ] && bc="" || bc="$(palette_color "$b")"
-            if [ -z "$tc" ] && [ -z "$bc" ]; then
-                out="$out "
-            elif [ -z "$bc" ]; then
-                out="$out$(ansi_color 38 "$tc")▀"$'\033[0m'
-            elif [ -z "$tc" ]; then
-                out="$out$(ansi_color 38 "$bc")▄"$'\033[0m'
-            else
-                out="$out$(ansi_color 38 "$tc")$(ansi_color 48 "$bc")▀"$'\033[0m'
-            fi
-        done
-        SPRITE_LINES+=("$out")
-    done
-}
-
-# Prints the banner for a session on model $1.
-print_banner() {
-    local chatbot name pipeline model lines=() sprite cols i
-    chatbot="$(jq -r '.chatbot.id // empty' "$ME_CACHE")"
-    name="$(jq -r '.chatbot.name // empty' "$ME_CACHE")"
-    pipeline="$(jq -r '.pipeline.name // empty' "$ME_CACHE")"
-    model="$(jq -r --arg id "$1" '(.models[] | select(.id == $id) | .label) // $id' "$ME_CACHE")"
-
-    lines+=("$(printf '\033[1mBerges AI\033[0m')")
-    lines+=("$name")
-    lines+=("${pipeline:+$pipeline pipeline · }$model")
-    lines+=("Powered by goose")
-    lines+=("/model  /pipeline  /chatbot")
-
-    sprite="$SPRITES_DIR/$chatbot.txt"
-    cols="$(tput cols 2>/dev/null || echo 80)"
-
-    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "$cols" -ge 50 ] && [ -n "$chatbot" ] && [ -f "$sprite" ]; then
-        case "${COLORTERM:-}" in truecolor|24bit) TRUECOLOR=1 ;; *) TRUECOLOR=0 ;; esac
-        render_sprite "$sprite"
-        printf '\n'
-        for (( i = 0; i < ${#SPRITE_LINES[@]}; i++ )); do
-            local text=""
-            [ "$i" -ge 1 ] && [ $(( i - 1 )) -lt ${#lines[@]} ] && text="${lines[$((i - 1))]}"
-            printf '  %s   %s\n' "${SPRITE_LINES[$i]}" "$text"
-        done
-        printf '\n'
-    else
-        printf '\n'
-        for text in "${lines[@]}"; do printf '%s\n' "$text"; done
-        printf '\n'
+    # The default model follows the chat's model until one is saved in pi
+    # (Ctrl+S in /model): it is updated only while it still equals the chat
+    # model written last time.
+    local web_model last_web="$STATE_DIR/web-model" current
+    web_model="$(jq -r '.default_model // empty' "$ME_CACHE")"
+    current="$(jq -r '.defaultModel // empty' "$settings")"
+    if [ -n "$web_model" ] && { [ ! -f "$last_web" ] || [ "$current" = "$(cat "$last_web")" ]; }; then
+        jq --arg model "$web_model" '.defaultProvider = "berges" | .defaultModel = $model' "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
     fi
+    [ -z "$web_model" ] || printf '%s' "$web_model" > "$last_web"
 }
 
 cmd_run() {
     local key me_status=0
 
-    require goose
+    require pi
     require jq
 
     key="$(key_read)"
@@ -297,40 +229,43 @@ cmd_run() {
     [ "$me_status" = 2 ] && exit 1
     [ -f "$ME_CACHE" ] || die "Couldn't reach Berges AI. Check your connection and try again."
 
-    write_goose_config
+    write_pi_config
 
-    export GOOSE_PATH_ROOT="$GOOSE_ROOT"
-    export GOOSE_PROVIDER="berges"
-    export GOOSE_MODEL="${GOOSE_MODEL:-$(jq -r '.default_model' "$ME_CACHE")}"
+    export PI_CODING_AGENT_DIR="$PI_DIR"
+    export PI_OFFLINE=1
+    export PI_TELEMETRY=0
+    export PI_SKIP_VERSION_CHECK=1
+    export BERGES_API_URL="$API_URL"
+    export BERGES_BIN="$SELF"
 
-    print_banner "$GOOSE_MODEL"
-    export GOOSE_TELEMETRY_OFF=1
-    export GOOSE_DISABLE_KEYRING=1
-    export BERGES_API_KEY="$key"
+    exec pi "$@"
+}
 
-    if [ "$#" -eq 0 ]; then
-        exec goose session
-    fi
-    exec goose "$@"
+cmd_key() {
+    local key
+    key="$(key_read)"
+    [ -n "$key" ] || die "This computer is not signed in. Run: berges login"
+    printf '%s\n' "$key"
 }
 
 cmd_help() {
     cat <<EOF
-Berges CLI $VERSION: Berges AI as an agent in your terminal, powered by goose.
+Berges CLI $VERSION: Berges AI as an agent in your terminal, built on pi.
 
   berges              Start a session
   berges login        Sign this computer in
   berges logout       Sign this computer out
   berges update       How to update
-  berges <command>    Any goose command, e.g. berges run -t "summarize README.md"
+  berges [pi options] Any pi option, e.g. berges -p "summarize README.md"
 
-In a session: /model, /pipeline and /chatbot switch what answers, /help lists the rest.
+In a session: /model, /pipeline and /chatbot switch what answers.
 More: https://berges.ai/help/use-berges-ai-in-your-terminal
 EOF
 }
 
 case "${1:-}" in
     login) require jq; cmd_login ;;
+    key) cmd_key ;;
     logout) cmd_logout ;;
     update|upgrade) printf 'Update with: brew upgrade berges\n' ;;
     help|-h|--help) cmd_help ;;
