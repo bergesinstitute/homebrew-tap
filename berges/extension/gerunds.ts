@@ -2,9 +2,11 @@
  * Gerund loader for pi: replaces the plain "Working" streaming message with a
  * slow cycle of gerunds, so a long turn looks alive instead of stuck.
  *
- * pi themes the loader message itself (muted by default), so the words are
- * passed as plain text and pick up the active Berges theme. The spinner next
- * to them stays pi's own.
+ * pi colours the spinner with the theme's `accent` but hardcodes the message
+ * to `muted`, and offers no token for it, so the word is coloured here with
+ * `accent` too. In the Berges themes that is the brand red: #860000 in
+ * berges-light, its dark equivalent in berges-dark, and the terminal's own
+ * background picks which of the two is active.
  *
  * Thinking off by default is a setting, not an extension: see
  * `defaultThinkingLevel` in the defaults the `berges` script writes.
@@ -60,7 +62,11 @@ export default function (pi: ExtensionAPI) {
 		// Start at a random word so back-to-back runs do not read the same.
 		next = Math.floor(Math.random() * GERUNDS.length);
 		const tick = () => {
-			ui?.setWorkingMessage(GERUNDS[next % GERUNDS.length]);
+			if (!ui) return;
+			// Coloured fresh every tick rather than stored, so a theme flip is
+			// picked up within one word. pi wraps the message in its own muted
+			// colour; the escape below overrides it for the word, then resets.
+			ui.setWorkingMessage(ui.theme.fg("accent", GERUNDS[next % GERUNDS.length]));
 			next += 1;
 		};
 		tick();

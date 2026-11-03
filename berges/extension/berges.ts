@@ -1,5 +1,6 @@
 /**
- * Berges AI extension for pi: the startup header, and /pipeline and /chatbot
+ * Berges AI extension for pi: the startup header, the brand-red placeholder
+ * that stands in for a hidden thinking block, and /pipeline and /chatbot
  * pickers that save the choice on this computer through the Berges AI API.
  * The model is picked with pi's own /model.
  *
@@ -49,10 +50,12 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") return;
 		ctx.ui.setHeader((_tui, theme) => ({
 			render(): string[] {
-				// Bold, in the Berges red (#860000).
-				const lines = ["", ` \x1b[1;38;2;134;0;0mBerges AI\x1b[22;39m`];
+				// Bold, in the brand red: #860000 in berges-light, its dark
+				// equivalent in berges-dark. This runs inside the render callback,
+				// so it picks up a theme change with no rebuilding of its own.
+				const lines = ["", ` ${theme.style("Berges AI", { fg: "accent", bold: true })}`];
 				// The terminal's own text colour, so it reads on light and dark backgrounds.
-				if (me?.chatbot) lines.push(` \x1b[1m${me.chatbot.name}\x1b[22m`);
+				if (me?.chatbot) lines.push(` ${theme.bold(me.chatbot.name)}`);
 				const model = ctx.model?.name ?? ctx.model?.id;
 				const layers = [me?.pipeline?.name, model].filter(Boolean).join(" + ");
 				if (layers) lines.push(` ${layers}`);
@@ -63,8 +66,23 @@ export default function (pi: ExtensionAPI) {
 		}));
 	};
 
+	// With thinking blocks hidden, pi shows a label in their place and colours
+	// it with `thinkingText`, the same token the expanded reasoning uses. There
+	// is no token for the label alone, so it is coloured here with `accent`,
+	// which is the brand red in both Berges themes; the reasoning keeps its
+	// quiet grey when expanded.
+	//
+	// pi stores the label as a string and fires no theme-change event, so a
+	// light/dark flip cannot refresh it on its own. Setting it again at the end
+	// of every turn bounds the staleness to the current turn.
+	const showThinkingLabel = (ctx: ExtensionContext) => {
+		if (ctx.mode !== "tui") return;
+		ctx.ui.setHiddenThinkingLabel(ctx.ui.theme.fg("accent", "Thinking..."));
+	};
+
 	pi.on("session_start", async (_event, ctx) => {
 		showHeader(ctx);
+		showThinkingLabel(ctx);
 		try {
 			me = await api("GET");
 			showHeader(ctx);
@@ -72,6 +90,8 @@ export default function (pi: ExtensionAPI) {
 			if (ctx.hasUI) ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 		}
 	});
+
+	pi.on("agent_end", async (_event, ctx) => showThinkingLabel(ctx));
 
 	pi.on("model_select", async (_event, ctx) => showHeader(ctx));
 

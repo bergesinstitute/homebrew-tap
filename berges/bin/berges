@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.3"
+VERSION="0.2.4"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"
@@ -164,9 +164,9 @@ write_pi_config() {
     # Rewritten on every start, so the models follow the API. Thinking levels
     # are not a Berges AI feature: the server picks the reasoning per model, so
     # `reasoning: false` hides the level from pi instead of offering a control
-    # that reaches nothing. The models still stream their reasoning, and pi
-    # still shows it. Flip this to true once the API honours reasoning_effort;
-    # supportsReasoningEffort is kept so that is a one-word change.
+    # that reaches nothing. Flip this to true once the API honours
+    # reasoning_effort; supportsReasoningEffort is kept so that is a one-word
+    # change.
     jq --arg url "$API_URL" --arg key "!'$SELF' key" '{
         providers: {
             berges: {
@@ -188,6 +188,12 @@ write_pi_config() {
     fi
 
     # Defaults are only added when missing, so changes made in pi stick.
+    #
+    # `reasoning: false` above only stops pi from asking for a thinking level.
+    # The models still stream reasoning_content, and pi turns that into a
+    # thinking block whatever the model declares, so hideThinkingBlock is what
+    # keeps it out of the transcript. It leaves a dim "Thinking..." in its
+    # place, which a click or Ctrl+T expands.
     defaults="$(jq --arg model "$(jq -r '.default_model // empty' "$ME_CACHE")" -n '{
         defaultProvider: "berges",
         defaultModel: $model,
@@ -195,6 +201,7 @@ write_pi_config() {
         quietStartup: "header",
         editorPaddingX: 1,
         defaultThinkingLevel: "off",
+        hideThinkingBlock: true,
         theme: "berges-light/berges-dark"
     }')"
     if [ -f "$settings" ]; then
