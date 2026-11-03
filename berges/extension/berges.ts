@@ -68,10 +68,11 @@ export default function (pi: ExtensionAPI) {
 
 	// With thinking blocks hidden, pi puts a "Thinking..." label in their place.
 	// The kitchen loader already says the turn is alive, so the label is blanked.
-	// An empty string renders as a zero-line Text, which drops the line outright
-	// instead of leaving a blank one; the mouse region around it collapses too.
-	// The empty string has to be passed explicitly, because calling with no
-	// argument restores pi's default rather than clearing it.
+	// An empty string still leaves a line of escape codes with no text, which
+	// pi's Text renders as a blank line; blocks.ts removes that line and the
+	// spacers pi groups around it, so blocks keep even spacing. The empty
+	// string has to be passed explicitly, because calling with no argument
+	// restores pi's default rather than clearing it.
 	//
 	// Set once: pi hands the current label to every assistant message it builds
 	// afterwards, and with no colour in it there is nothing to go stale on a
