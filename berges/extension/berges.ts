@@ -9,6 +9,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { execFileSync } from "node:child_process";
 
 type Option = { id: string; name: string; adjective?: string };
@@ -41,6 +42,24 @@ async function api(method: "GET" | "PATCH", body?: Record<string, string>): Prom
 		throw new Error(json?.error?.message ?? `Berges AI answered ${response.status}.`);
 	}
 	return (await response.json()) as Me;
+}
+
+/** Compact token counts, matching pi's default footer. */
+function formatTokens(count: number): string {
+	if (count < 1000) return count.toString();
+	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+	if (count < 1000000) return `${Math.round(count / 1000)}k`;
+	if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
+	return `${Math.round(count / 1000000)}M`;
+}
+
+/** The current directory, with the home directory shortened to ~. */
+function formatDir(cwd: string): string {
+	const home = process.env.HOME || process.env.USERPROFILE;
+	if (!home) return cwd;
+	if (cwd === home) return "~";
+	if (cwd.startsWith(`${home}/`)) return `~${cwd.slice(home.length)}`;
+	return cwd;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -83,8 +102,80 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setHiddenThinkingLabel("");
 	};
 
+	// The footer keeps the current directory on the left and the session's
+	// metrics on the right. pi's default also puts the model name on the right;
+	// here the model is already in the header, next to the pipeline and chatbot,
+	// so the footer drops it and gives the metrics the whole right side.
+	const showFooter = (ctx: ExtensionContext) => {
+		if (ctx.mode !== "tui") return;
+		ctx.ui.setFooter((tui, theme, footerData) => {
+			const unsub = footerData.onBranchChange(() => tui.requestRender());
+			return {
+				dispose: unsub,
+				invalidate() {},
+				render(width: number): string[] {
+					const branch = footerData.getGitBranch();
+					const dir = formatDir(ctx.cwd);
+					const left = theme.fg("dim", branch ? `${dir} (${branch})` : dir);
+
+					let input = 0,
+						output = 0,
+						cacheRead = 0,
+						cacheWrite = 0,
+						cost = 0;
+					for (const entry of ctx.sessionManager.getEntries()) {
+						const usage =
+							entry.type === "usage"
+								? entry.usage
+								: entry.type === "message" && entry.message.role === "assistant"
+									? entry.message.usage
+									: entry.type === "message" && entry.message.role === "toolResult"
+										? entry.message.usage
+										: entry.type === "compaction" || entry.type === "branch_summary"
+											? entry.usage
+											: undefined;
+						if (!usage) continue;
+						input += usage.input;
+						output += usage.output;
+						cacheRead += usage.cacheRead;
+						cacheWrite += usage.cacheWrite;
+						cost += usage.cost.total;
+					}
+
+					const dim = (text: string) => theme.fg("dim", text);
+					const parts: string[] = [];
+					if (input) parts.push(dim(`↑${formatTokens(input)}`));
+					if (output) parts.push(dim(`↓${formatTokens(output)}`));
+					if (cacheRead) parts.push(dim(`R${formatTokens(cacheRead)}`));
+					if (cacheWrite) parts.push(dim(`W${formatTokens(cacheWrite)}`));
+					if (cost) parts.push(dim(`$${cost.toFixed(3)}`));
+
+					const usage = ctx.getContextUsage();
+					const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
+					const percent = usage?.percent ?? null;
+					const contextText =
+						percent === null
+							? `?/${formatTokens(contextWindow)}`
+							: `${percent.toFixed(1)}%/${formatTokens(contextWindow)}`;
+					parts.push(
+						percent !== null && percent > 90
+							? theme.fg("error", contextText)
+							: percent !== null && percent > 70
+								? theme.fg("warning", contextText)
+								: dim(contextText),
+					);
+
+					const right = parts.join(" ");
+					const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
+					return [truncateToWidth(left + pad + right, width)];
+				},
+			};
+		});
+	};
+
 	pi.on("session_start", async (_event, ctx) => {
 		showHeader(ctx);
+		showFooter(ctx);
 		hideThinkingLabel(ctx);
 		try {
 			me = await api("GET");
