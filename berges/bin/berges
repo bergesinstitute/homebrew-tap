@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"
@@ -161,7 +161,8 @@ write_pi_config() {
     local settings="$PI_DIR/settings.json" defaults
     mkdir -p "$PI_DIR/extensions"
 
-    # Rewritten on every start, so the models follow the API.
+    # Rewritten on every start, so the models follow the API. Every model
+    # streams reasoning, and reasoning_effort carries the thinking level.
     jq --arg url "$API_URL" --arg key "!'$SELF' key" '{
         providers: {
             berges: {
@@ -169,12 +170,13 @@ write_pi_config() {
                 baseUrl: $url,
                 api: "openai-completions",
                 apiKey: $key,
-                models: [.models[] | {id, name, contextWindow: .context_window, maxTokens: .max_tokens}]
+                compat: {supportsReasoningEffort: true},
+                models: [.models[] | {id, name, contextWindow: .context_window, maxTokens: .max_tokens, reasoning: true}]
             }
         }
     }' "$ME_CACHE" > "$PI_DIR/models.json"
 
-    cp "$SHARE_DIR/extension/berges.ts" "$PI_DIR/extensions/berges.ts"
+    cp "$SHARE_DIR/extension/"*.ts "$PI_DIR/extensions/"
 
     # Defaults are only added when missing, so changes made in pi stick.
     defaults="$(jq --arg model "$(jq -r '.default_model // empty' "$ME_CACHE")" -n '{
@@ -182,7 +184,8 @@ write_pi_config() {
         defaultModel: $model,
         enableInstallTelemetry: false,
         quietStartup: "header",
-        editorPaddingX: 1
+        editorPaddingX: 1,
+        defaultThinkingLevel: "minimal"
     }')"
     if [ -f "$settings" ]; then
         jq --argjson defaults "$defaults" '$defaults + .' "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
