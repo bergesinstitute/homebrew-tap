@@ -1,8 +1,8 @@
 class Berges < Formula
   desc "Berges AI as an agent in your terminal, built on pi"
   homepage "https://berges.ai/help/use-berges-ai-in-your-terminal"
-  url "https://github.com/bergesinstitute/homebrew-tap/archive/refs/tags/berges-v0.2.8.tar.gz"
-  sha256 "19aad486ebd711510dd278864423550c3c47715ad306ad5655ffc81848613452"
+  url "https://github.com/bergesinstitute/homebrew-tap/archive/refs/tags/berges-v0.2.9.tar.gz"
+  sha256 "3826db9a433253d277d1b87b461633a5e40e94fd30f7bb2c06aaeda34335bced"
   head "https://github.com/bergesinstitute/homebrew-tap.git", branch: "master"
 
   depends_on "fd"
