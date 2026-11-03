@@ -1,7 +1,7 @@
 /**
- * Berges AI extension for pi: the startup header, the brand-red placeholder
- * that stands in for a hidden thinking block, and /pipeline and /chatbot
- * pickers that save the choice on this computer through the Berges AI API.
+ * Berges AI extension for pi: the startup header, the blanked-out placeholder
+ * for a hidden thinking block, and /pipeline and /chatbot pickers that save
+ * the choice on this computer through the Berges AI API.
  * The model is picked with pi's own /model.
  *
  * The `berges` wrapper sets BERGES_API_URL and BERGES_BIN; the API key is read
@@ -66,23 +66,25 @@ export default function (pi: ExtensionAPI) {
 		}));
 	};
 
-	// With thinking blocks hidden, pi shows a label in their place and colours
-	// it with `thinkingText`, the same token the expanded reasoning uses. There
-	// is no token for the label alone, so it is coloured here with `accent`,
-	// which is the brand red in both Berges themes; the reasoning keeps its
-	// quiet grey when expanded.
+	// With thinking blocks hidden, pi puts a "Thinking..." label in their place.
+	// The gerund loader already says the turn is alive, so the label is blanked.
+	// An empty string renders as a zero-line Text, which drops the line outright
+	// instead of leaving a blank one; the mouse region around it collapses too.
+	// The empty string has to be passed explicitly, because calling with no
+	// argument restores pi's default rather than clearing it.
 	//
-	// pi stores the label as a string and fires no theme-change event, so a
-	// light/dark flip cannot refresh it on its own. Setting it again at the end
-	// of every turn bounds the staleness to the current turn.
-	const showThinkingLabel = (ctx: ExtensionContext) => {
+	// Set once: pi hands the current label to every assistant message it builds
+	// afterwards, and with no colour in it there is nothing to go stale on a
+	// theme flip. Ctrl+T still expands the reasoning; only the click target
+	// goes, since there is no line left to click.
+	const hideThinkingLabel = (ctx: ExtensionContext) => {
 		if (ctx.mode !== "tui") return;
-		ctx.ui.setHiddenThinkingLabel(ctx.ui.theme.fg("accent", "Thinking..."));
+		ctx.ui.setHiddenThinkingLabel("");
 	};
 
 	pi.on("session_start", async (_event, ctx) => {
 		showHeader(ctx);
-		showThinkingLabel(ctx);
+		hideThinkingLabel(ctx);
 		try {
 			me = await api("GET");
 			showHeader(ctx);
@@ -90,8 +92,6 @@ export default function (pi: ExtensionAPI) {
 			if (ctx.hasUI) ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 		}
 	});
-
-	pi.on("agent_end", async (_event, ctx) => showThinkingLabel(ctx));
 
 	pi.on("model_select", async (_event, ctx) => showHeader(ctx));
 

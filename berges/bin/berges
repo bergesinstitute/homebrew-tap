@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.4"
+VERSION="0.2.5"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"
@@ -192,8 +192,9 @@ write_pi_config() {
     # `reasoning: false` above only stops pi from asking for a thinking level.
     # The models still stream reasoning_content, and pi turns that into a
     # thinking block whatever the model declares, so hideThinkingBlock is what
-    # keeps it out of the transcript. It leaves a dim "Thinking..." in its
-    # place, which a click or Ctrl+T expands.
+    # keeps it out of the transcript. pi would leave a "Thinking..." label in
+    # its place; berges.ts blanks it, since the gerund loader already covers the
+    # wait. Ctrl+T still expands the reasoning.
     defaults="$(jq --arg model "$(jq -r '.default_model // empty' "$ME_CACHE")" -n '{
         defaultProvider: "berges",
         defaultModel: $model,
