@@ -23,7 +23,7 @@
  *   uses; the label inside keeps the brand red.
  *
  * Every box is inset by outputPad, so its border lines up with regular text,
- * and is padded equally above and below its content.
+ * and its content sits flush against the border (PAD_Y is 0).
  *
  * One spacing fix lives here too. With thinking blocks hidden, pi renders the
  * blanked label (`setHiddenThinkingLabel("")` in berges.ts) as a line of
@@ -34,7 +34,7 @@
  * below every block.
  */
 
-import type { ExtensionAPI, Theme, ToolRenderContext, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, Theme, ToolRenderers, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import {
 	AssistantMessageComponent,
 	BranchSummaryMessageComponent,
@@ -46,7 +46,7 @@ import {
 import { Box, type Component, Markdown, MouseRegion, Spacer, Text, visibleWidth } from "@earendil-works/pi-tui";
 
 /** Blank lines between the border and the content. */
-const PAD_Y = 1;
+const PAD_Y = 0;
 
 /** A box with a rounded border and padding, sized to the width. */
 class RoundedBox implements Component {
@@ -97,6 +97,13 @@ class RoundedBox implements Component {
 		return lines;
 	}
 }
+
+/**
+ * pi exports `ToolRenderContext` from its internal types module but does not
+ * re-export it from the package root, so it is derived from the renderer
+ * signature instead.
+ */
+type ToolRenderContext = Parameters<NonNullable<ToolRenderers["renderCall"]>>[2];
 
 function borderFor(ctx: ToolRenderContext, theme: Theme): (text: string) => string {
 	if (ctx.isPartial) return (text) => theme.fg("muted", text);
@@ -154,9 +161,9 @@ const ANSI_CSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
 /** True for the hidden-thinking label: a mouse region around escape codes with no text. */
 function isInvisibleLabel(child: unknown): boolean {
 	if (!(child instanceof MouseRegion)) return false;
-	const inner = (child as { child?: unknown }).child;
+	const inner = (child as unknown as { child?: unknown }).child;
 	if (!(inner instanceof Text)) return false;
-	const text = (inner as { text?: string }).text ?? "";
+	const text = (inner as unknown as { text?: string }).text ?? "";
 	return text.replace(ANSI_CSI, "").trim() === "";
 }
 
