@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"
@@ -159,7 +159,7 @@ fetch_me() {
 
 write_pi_config() {
     local settings="$PI_DIR/settings.json" defaults
-    mkdir -p "$PI_DIR/extensions"
+    mkdir -p "$PI_DIR/extensions" "$PI_DIR/themes"
 
     # Rewritten on every start, so the models follow the API. Every model
     # streams reasoning, and reasoning_effort carries the thinking level.
@@ -178,6 +178,11 @@ write_pi_config() {
 
     cp "$SHARE_DIR/extension/"*.ts "$PI_DIR/extensions/"
 
+    # A theme is cosmetic, so unlike a missing extension it never blocks startup.
+    if [ -d "$SHARE_DIR/themes" ]; then
+        cp "$SHARE_DIR/themes/"*.json "$PI_DIR/themes/"
+    fi
+
     # Defaults are only added when missing, so changes made in pi stick.
     defaults="$(jq --arg model "$(jq -r '.default_model // empty' "$ME_CACHE")" -n '{
         defaultProvider: "berges",
@@ -185,7 +190,8 @@ write_pi_config() {
         enableInstallTelemetry: false,
         quietStartup: "header",
         editorPaddingX: 1,
-        defaultThinkingLevel: "minimal"
+        defaultThinkingLevel: "minimal",
+        theme: "berges-light/berges-dark"
     }')"
     if [ -f "$settings" ]; then
         jq --argjson defaults "$defaults" '$defaults + .' "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
