@@ -11,9 +11,8 @@
  *
  * pi colours the spinner with the theme's `accent` but hardcodes the message
  * to `muted`, and offers no token for it, so the word is coloured here with
- * `accent` too. In the Berges themes that is the brand red: #860000 in
- * berges-light, its dark equivalent in berges-dark, and the terminal's own
- * background picks which of the two is active.
+ * the theme's `text`, the terminal's normal foreground, rather than the brand
+ * red the spinner keeps.
  *
  * Thinking off by default is a setting, not an extension: see
  * `defaultThinkingLevel` in the defaults the `berges` script writes.
@@ -122,7 +121,7 @@ export default function (pi: ExtensionAPI) {
 		// Coloured fresh every time rather than stored, so a theme flip is picked
 		// up within one word. pi wraps the message in its own muted colour; the
 		// escape below overrides it for the word, then resets.
-		ui.setWorkingMessage(ui.theme.fg("accent", WORDS[next % WORDS.length]));
+		ui.setWorkingMessage(ui.theme.fg("text", WORDS[next % WORDS.length]));
 		shownAt = Date.now();
 	};
 

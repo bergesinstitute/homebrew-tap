@@ -1,7 +1,8 @@
 /**
- * Rounded borders, in each block's own colour and with no background fill,
- * for the transcript blocks: tool executions, the user's prompt, and the
- * system blocks (custom, compaction, branch and skill messages).
+ * Rounded borders and no background fill, for the transcript blocks: tool
+ * executions, the user's prompt, and the system blocks (custom, compaction,
+ * branch and skill messages). Every border is the brand red, except a failed
+ * tool, which keeps the error red, and the user's prompt, which is plain text.
  *
  * pi fills tool blocks with a background colour (grey while running, green on
  * success, red on failure), the user's prompt with blue, and the system
@@ -15,12 +16,12 @@
  *   renderer fills it, the result renderer appends to it and returns an empty
  *   component, so the border is drawn once.
  * - The user's prompt has no renderer hook, so `UserMessageComponent.rebuild`
- *   is patched to swap the Markdown it builds into the same kind of box. The
- *   class is exported and extensions share module instances with pi, so the
- *   patch reaches the components pi itself builds.
+ *   is patched to swap the Markdown it builds into the same kind of box, in
+ *   the normal text colour. The class is exported and extensions share module
+ *   instances with pi, so the patch reaches the components pi itself builds.
  * - The system blocks are Boxes filled with `customMessageBg`. Their `render`
- *   is replaced with the same border in muted, the colour their text already
- *   uses; the label inside keeps the brand red.
+ *   is replaced with the same brand border; the label inside keeps the brand
+ *   red.
  *
  * Every box is inset by outputPad, so its border lines up with regular text,
  * and its content sits flush against the border (PAD_Y is 0).
@@ -106,9 +107,8 @@ class RoundedBox implements Component {
 type ToolRenderContext = Parameters<NonNullable<ToolRenderers["renderCall"]>>[2];
 
 function borderFor(ctx: ToolRenderContext, theme: Theme): (text: string) => string {
-	if (ctx.isPartial) return (text) => theme.fg("muted", text);
 	if (ctx.isError) return (text) => theme.fg("error", text);
-	return (text) => theme.fg("success", text);
+	return (text) => theme.fg("accent", text);
 }
 
 /** The edit tool frames its call with its own filled Box; the border replaces the fill. */
@@ -140,7 +140,6 @@ interface BoxState {
 type UserMessageLike = {
 	children: Component[];
 	outputPad: number;
-	markdownTheme: { link?: (text: string) => string };
 	rebuild(): void;
 	clear(): void;
 	addChild(component: Component): void;
@@ -167,7 +166,7 @@ function isInvisibleLabel(child: unknown): boolean {
 	return text.replace(ANSI_CSI, "").trim() === "";
 }
 
-/** The user's prompt in a blue rounded border (mdLink is blue in both themes), with no fill. */
+/** The user's prompt in a rounded border in the normal text colour, with no fill. */
 function patchUserMessage(): void {
 	const proto = UserMessageComponent.prototype as unknown as { rebuild: (this: UserMessageLike) => void };
 	const original = proto.rebuild;
@@ -187,7 +186,7 @@ function patchUserMessage(): void {
 
 		const inset = Number.isFinite(this.outputPad) ? this.outputPad : 1;
 		const box = new RoundedBox(inset, inset, PAD_Y);
-		box.setBorder(this.markdownTheme?.link ?? ((text: string) => text));
+		box.setBorder(textBorder);
 		box.setChildren([child]);
 		this.clear();
 		this.addChild(box);
@@ -225,8 +224,11 @@ function patchAssistantMessage(): void {
  */
 let uiApi: { theme: Theme } | null = null;
 
-/** Neutral border for the system blocks: their text is muted in both themes. */
-const mutedBorder = (text: string): string => uiApi?.theme.fg("muted", text) ?? text;
+/** Brand border for the system blocks, matching the tool boxes. */
+const brandBorder = (text: string): string => uiApi?.theme.fg("accent", text) ?? text;
+
+/** Normal text colour, for the user's prompt border. */
+const textBorder = (text: string): string => uiApi?.theme.fg("text", text) ?? text;
 
 /** What the filled system blocks look like at runtime. */
 type BoxMessageLike = {
@@ -245,7 +247,7 @@ function borderBoxRender(this: BoxMessageLike, width: number): string[] {
 	if (!this.children || this.children.length === 0) return [];
 	const pad = Number.isFinite(this.paddingX) ? this.paddingX : 1;
 	const box = new RoundedBox(pad, pad, PAD_Y);
-	box.setBorder(mutedBorder);
+	box.setBorder(brandBorder);
 	box.setChildren(this.children);
 	return box.render(width);
 }
