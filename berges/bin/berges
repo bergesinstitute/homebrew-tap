@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.2"
+VERSION="0.2.3"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"
@@ -161,8 +161,12 @@ write_pi_config() {
     local settings="$PI_DIR/settings.json" defaults
     mkdir -p "$PI_DIR/extensions" "$PI_DIR/themes"
 
-    # Rewritten on every start, so the models follow the API. Every model
-    # streams reasoning, and reasoning_effort carries the thinking level.
+    # Rewritten on every start, so the models follow the API. Thinking levels
+    # are not a Berges AI feature: the server picks the reasoning per model, so
+    # `reasoning: false` hides the level from pi instead of offering a control
+    # that reaches nothing. The models still stream their reasoning, and pi
+    # still shows it. Flip this to true once the API honours reasoning_effort;
+    # supportsReasoningEffort is kept so that is a one-word change.
     jq --arg url "$API_URL" --arg key "!'$SELF' key" '{
         providers: {
             berges: {
@@ -171,7 +175,7 @@ write_pi_config() {
                 api: "openai-completions",
                 apiKey: $key,
                 compat: {supportsReasoningEffort: true},
-                models: [.models[] | {id, name, contextWindow: .context_window, maxTokens: .max_tokens, reasoning: true}]
+                models: [.models[] | {id, name, contextWindow: .context_window, maxTokens: .max_tokens, reasoning: false}]
             }
         }
     }' "$ME_CACHE" > "$PI_DIR/models.json"
@@ -190,7 +194,7 @@ write_pi_config() {
         enableInstallTelemetry: false,
         quietStartup: "header",
         editorPaddingX: 1,
-        defaultThinkingLevel: "minimal",
+        defaultThinkingLevel: "off",
         theme: "berges-light/berges-dark"
     }')"
     if [ -f "$settings" ]; then
