@@ -131,8 +131,16 @@ export default function (pi: ExtensionAPI) {
 	const schedule = () => {
 		if (timer !== undefined) clearTimeout(timer);
 		timer = setTimeout(() => {
-			next += 1;
-			show();
+			try {
+				next += 1;
+				show();
+			} catch {
+				// pi cannot catch a throw from a timer callback, so a pi change that
+				// removes the loader API would crash the process here. Stop the cycle
+				// and let pi's default working message stand.
+				stop(false);
+				return;
+			}
 			schedule();
 		}, wait());
 	};

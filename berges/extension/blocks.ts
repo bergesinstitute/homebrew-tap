@@ -271,12 +271,21 @@ function patchCustomMessageComponent(): void {
 }
 
 export default function (pi: ExtensionAPI) {
-	patchUserMessage();
-	patchAssistantMessage();
-	patchCustomMessageComponent();
-	patchBoxMessageComponent(CompactionSummaryMessageComponent as unknown as { prototype: BoxMessageLike });
-	patchBoxMessageComponent(BranchSummaryMessageComponent as unknown as { prototype: BoxMessageLike });
-	patchBoxMessageComponent(SkillInvocationMessageComponent as unknown as { prototype: BoxMessageLike });
+	// The component classes above are imported by name. pi loads extensions
+	// through jiti, which turns a missing named export into undefined instead of
+	// failing the import, so a pi update that renames or removes one would
+	// otherwise throw on the first `.prototype` access and take every patch in
+	// this file down with it. Each patch is guarded, so a missing class costs
+	// only that block's border.
+	if (UserMessageComponent) patchUserMessage();
+	if (AssistantMessageComponent) patchAssistantMessage();
+	if (CustomMessageComponent) patchCustomMessageComponent();
+	if (CompactionSummaryMessageComponent)
+		patchBoxMessageComponent(CompactionSummaryMessageComponent as unknown as { prototype: BoxMessageLike });
+	if (BranchSummaryMessageComponent)
+		patchBoxMessageComponent(BranchSummaryMessageComponent as unknown as { prototype: BoxMessageLike });
+	if (SkillInvocationMessageComponent)
+		patchBoxMessageComponent(SkillInvocationMessageComponent as unknown as { prototype: BoxMessageLike });
 
 	pi.on("session_start", (_event, ctx) => {
 		uiApi = ctx.ui;
