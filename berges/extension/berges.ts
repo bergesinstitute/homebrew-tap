@@ -1,7 +1,7 @@
 /**
- * Berges AI extension for pi: the startup header, the blanked-out placeholder
- * for a hidden thinking block, and /pipeline and /chatbot pickers that save
- * the choice on this computer through the Berges AI API.
+ * Berges AI extension for pi: the startup header, the footer, the blanked-out
+ * placeholder for a hidden thinking block, and /pipeline and /chatbot pickers
+ * that save the choice on this computer through the Berges AI API.
  * The model is picked with pi's own /model.
  *
  * The `berges` wrapper sets BERGES_API_URL and BERGES_BIN; the API key is read
@@ -106,8 +106,15 @@ export default function (pi: ExtensionAPI) {
 	// metrics on the right. pi's default also puts the model name on the right;
 	// here the model is already in the header, next to the pipeline and chatbot,
 	// so the footer drops it and gives the metrics the whole right side.
+	//
+	// pi has no footer padding setting, so the footer is indented here by the
+	// same number of cells as `editorPaddingX`, lining it up with the padded
+	// editor and transcript. The line is laid out in the width left over after
+	// the indent, then the indent is prefixed to it.
 	const showFooter = (ctx: ExtensionContext) => {
 		if (ctx.mode !== "tui") return;
+		const pad = Math.min(3, Math.max(0, pi.getSettings().editorPaddingX ?? 0));
+		const indent = " ".repeat(pad);
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const unsub = footerData.onBranchChange(() => tui.requestRender());
 			return {
@@ -166,8 +173,9 @@ export default function (pi: ExtensionAPI) {
 					);
 
 					const right = parts.join(" ");
-					const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-					return [truncateToWidth(left + pad + right, width)];
+					const innerWidth = Math.max(0, width - pad);
+					const gap = " ".repeat(Math.max(1, innerWidth - visibleWidth(left) - visibleWidth(right)));
+					return [`${indent}${truncateToWidth(left + gap + right, innerWidth)}`];
 				},
 			};
 		});

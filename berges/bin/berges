@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.7"
+VERSION="0.2.8"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"
@@ -180,6 +180,9 @@ write_pi_config() {
         }
     }' "$ME_CACHE" > "$PI_DIR/models.json"
 
+    # footer-padding.ts was folded into the footer in berges.ts; remove the
+    # stale copy so an upgrade does not leave two extensions setting a footer.
+    rm -f "$PI_DIR/extensions/footer-padding.ts"
     cp "$SHARE_DIR/extension/"*.ts "$PI_DIR/extensions/"
 
     # A theme is cosmetic, so unlike a missing extension it never blocks startup.
