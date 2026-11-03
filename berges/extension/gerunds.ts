@@ -1,6 +1,13 @@
 /**
- * Gerund loader for pi: replaces the plain "Working" streaming message with a
- * slow cycle of gerunds, so a long turn looks alive instead of stuck.
+ * Kitchen loader for pi: replaces the plain "Working" streaming message with a
+ * slow cycle of cooking words and phrases, so a long turn looks alive instead
+ * of stuck.
+ *
+ * The list is deliberately one theme rather than a thesaurus of synonyms for
+ * "thinking", which is the register other agents' loaders use. Kitchen words
+ * read as intentional, and the mix of short gerunds, rarer terms
+ * (spatchcocking, chiffonading, confiting) and whole phrases ("tasting for
+ * salt", "letting it rest") keeps the cycle from reading as a word list.
  *
  * pi colours the spinner with the theme's `accent` but hardcodes the message
  * to `muted`, and offers no token for it, so the word is coloured here with
@@ -21,27 +28,61 @@
 
 import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 
-const GERUNDS = [
-	"Thinking",
-	"Pondering",
-	"Contemplating",
-	"Mulling",
-	"Ruminating",
-	"Deliberating",
-	"Considering",
-	"Musing",
-	"Reflecting",
-	"Cogitating",
-	"Reasoning",
-	"Computing",
-	"Percolating",
-	"Simmering",
-	"Marinating",
-	"Noodling",
-	"Untangling",
-	"Conjuring",
-	"Brewing",
-	"Working",
+const WORDS = [
+	"Kneading",
+	"Reducing the sauce",
+	"Zesting",
+	"Proofing",
+	"Tasting for salt",
+	"Deglazing",
+	"Sifting",
+	"Folding in the eggs",
+	"Searing",
+	"Tempering",
+	"Mise en place",
+	"Julienning",
+	"Checking the oven",
+	"Braising",
+	"Emulsifying",
+	"Letting it rest",
+	"Mincing",
+	"Blanching",
+	"Sharpening the knife",
+	"Caramelizing",
+	"Grating",
+	"Bringing to a boil",
+	"Basting",
+	"Chiffonading",
+	"Warming the pan",
+	"Poaching",
+	"Rendering",
+	"Skimming the foam",
+	"Curing",
+	"Pickling",
+	"Adjusting the heat",
+	"Fermenting",
+	"Dredging",
+	"Plating it up",
+	"Trussing",
+	"Spatchcocking",
+	"Cleaning as I go",
+	"Torching",
+	"Smoking",
+	"Preheating the oven",
+	"Charring",
+	"Infusing",
+	"Setting the table",
+	"Muddling",
+	"Decanting",
+	"Serving it hot",
+	"Straining",
+	"Creaming",
+	"Macerating",
+	"Confiting",
+	"Brining",
+	"Flambéing",
+	"Rolling",
+	"Crimping",
 ];
 
 /**
@@ -81,7 +122,7 @@ export default function (pi: ExtensionAPI) {
 		// Coloured fresh every time rather than stored, so a theme flip is picked
 		// up within one word. pi wraps the message in its own muted colour; the
 		// escape below overrides it for the word, then resets.
-		ui.setWorkingMessage(ui.theme.fg("accent", GERUNDS[next % GERUNDS.length]));
+		ui.setWorkingMessage(ui.theme.fg("accent", WORDS[next % WORDS.length]));
 		shownAt = Date.now();
 	};
 
@@ -114,7 +155,7 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui" || !enabled) return;
 		stop(false);
 		// Start at a random word so back-to-back runs do not read the same.
-		next = Math.floor(Math.random() * GERUNDS.length);
+		next = Math.floor(Math.random() * WORDS.length);
 		show();
 		schedule();
 	};
@@ -137,7 +178,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", async () => stop(true));
 
 	pi.registerCommand("gerunds", {
-		description: "Show the gerund list, or turn the cycling loader message on or off.",
+		description: "Show the loader words, or turn the cycling loader message on or off.",
 		handler: async (args: string, ctx: ExtensionContext) => {
 			const picked = args.trim().toLowerCase();
 			if (picked === "on" || picked === "off") {
@@ -146,10 +187,10 @@ export default function (pi: ExtensionAPI) {
 					ui = ctx.ui;
 					stop(true);
 				}
-				ctx.ui.notify(`Gerund loader ${enabled ? "on" : "off"}.`, "info");
+				ctx.ui.notify(`Loader ${enabled ? "on" : "off"}.`, "info");
 				return;
 			}
-			ctx.ui.notify(GERUNDS.join(", "), "info");
+			ctx.ui.notify(WORDS.join(", "), "info");
 		},
 	});
 }

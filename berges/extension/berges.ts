@@ -67,7 +67,7 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	// With thinking blocks hidden, pi puts a "Thinking..." label in their place.
-	// The gerund loader already says the turn is alive, so the label is blanked.
+	// The kitchen loader already says the turn is alive, so the label is blanked.
 	// An empty string renders as a zero-line Text, which drops the line outright
 	// instead of leaving a blank one; the mouse region around it collapses too.
 	// The empty string has to be passed explicitly, because calling with no
