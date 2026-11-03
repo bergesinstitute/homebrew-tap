@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-VERSION="0.2.11"
+VERSION="0.2.12"
 API_URL="${BERGES_API_URL:-https://berges.ai/api/v1}"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/berges"
 PI_DIR="$STATE_DIR/pi"

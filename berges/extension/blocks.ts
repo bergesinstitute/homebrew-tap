@@ -216,6 +216,41 @@ function patchAssistantMessage(): void {
 	};
 }
 
+/**
+ * Drop the ``` fences from fenced code blocks, keeping the indent and syntax
+ * colours. pi emits the opening fence (with the language tag) and the closing
+ * fence as ordinary lines in `Markdown.renderToken`, and the theme can only
+ * recolour them, not suppress them. The method is wrapped instead, and the two
+ * fence lines are filtered out of the result.
+ *
+ * The fences are matched by their exact text (after stripping ANSI) rather than
+ * a `/^```/` pattern: the code body is indented with `codeBlockIndent`, so a
+ * pattern would also eat any code line that happens to start with backticks.
+ * The filter runs before `renderBlock` adds margins and background, so the
+ * plain strings match exactly.
+ */
+function patchMarkdownCodeBlocks(): void {
+	const proto = Markdown.prototype as unknown as {
+		renderToken: (
+			this: unknown,
+			token: { type?: string; lang?: string },
+			width: number,
+			nextTokenType?: string,
+			styleContext?: unknown,
+		) => string[];
+	};
+	const original = proto.renderToken;
+	proto.renderToken = function (token, width, nextTokenType, styleContext) {
+		const lines = original.call(this, token, width, nextTokenType, styleContext);
+		if (token?.type !== "code") return lines;
+		const open = "```" + (token.lang ?? "");
+		return lines.filter((line) => {
+			const plain = line.replace(ANSI_CSI, "");
+			return plain !== open && plain !== "```";
+		});
+	};
+}
+
 // --- system blocks (custom, compaction, branch, skill) ---------------------
 
 /**
@@ -281,6 +316,7 @@ export default function (pi: ExtensionAPI) {
 	// only that block's border.
 	if (UserMessageComponent) patchUserMessage();
 	if (AssistantMessageComponent) patchAssistantMessage();
+	if (Markdown) patchMarkdownCodeBlocks();
 	if (CustomMessageComponent) patchCustomMessageComponent();
 	if (CompactionSummaryMessageComponent)
 		patchBoxMessageComponent(CompactionSummaryMessageComponent as unknown as { prototype: BoxMessageLike });
