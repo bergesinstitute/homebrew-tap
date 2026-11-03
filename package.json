@@ -1,0 +1,15 @@
+{
+  "name": "berges-tap",
+  "private": true,
+  "type": "module",
+  "description": "Type-checking only. The extensions are loaded at runtime by the pi that Homebrew installs; nothing here is installed by the formula.",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-tui": "1.5.0",
+    "@types/node": "^22",
+    "typescript": "^7.0.2"
+  }
+}
